@@ -89,7 +89,7 @@ TEST_CASE("structured bindings - details")
     {
         int tab[2] = {1, 2};
 
-        auto [x, y] = tab;
+        auto& [x, y] = tab;
 
         REQUIRE(x == 1);
         REQUIRE(y == 2);
@@ -116,7 +116,7 @@ TEST_CASE("structured bindings - details")
 
             auto result = numbers.insert(2);
             REQUIRE(*result.first == 2);
-            REQUIRE(result.second == true);
+            REQUIRE(result.second == false);
         }
 
         SECTION("since C++17")
@@ -142,4 +142,156 @@ TEST_CASE("structured bindings - details")
 
         REQUIRE(error_code == 13);
     }
+}
+
+struct Timestamp
+{
+    int h, m, s;
+};
+
+TEST_CASE("structured bindings - how it works")
+{
+    Timestamp t1 {12, 50, 0};
+
+    auto& [hours, minutes, seconds] = t1;
+
+    hours = 13;
+
+    int& meeting_hour = hours;
+
+    meeting_hour = 15;
+
+    REQUIRE(t1.h == 15);
+
+    SECTION("is interpreted as")
+    {
+        const auto& entity = t1;
+
+        auto& hours = t1.h;
+        auto& minutes = t1.m;
+        auto& seconds = t1.s;
+    }
+}
+
+struct Person
+{
+    string fname, lname;
+};
+
+TEST_CASE("structured binding - move semantics")
+{
+    Person participant {"John", "Smith"};
+
+    SECTION("transfer of state to anonymous entity")
+    {
+        auto [first_name, last_name] = std::move(participant);
+
+        REQUIRE(participant.fname == ""s);
+        REQUIRE(participant.lname == ""s);
+        REQUIRE(first_name == "John"s);
+    }
+
+    SECTION("is intepreted")
+    {
+        auto entity = std::move(participant);
+        auto& first_name = entity.fname;
+        auto& last_name = entity.lname;
+    }
+
+    SECTION("&& - only static cast")
+    {
+        auto&& [first_name, last_name] = std::move(participant);
+
+        REQUIRE(participant.fname == "John"s);
+        REQUIRE(participant.lname == "Smith"s);
+        REQUIRE(first_name == "John"s);
+    }
+}
+
+TEST_CASE("use cases")
+{
+    SECTION("iteration over map")
+    {
+        std::map<int, std::string> dict = { {1, "one"s}, {2, "two"}, {3, "three"} };
+
+        for(const auto& [key, value] : dict)
+        {
+            std::cout << key << " - " << value << "\n";
+        }       
+    }
+
+    SECTION("multiple initialization")
+    {
+        set numbers = {1, 2, 3};
+
+        for(auto [index, it] = std::tuple(0, begin(numbers)); it != end(numbers); ++it, ++index)
+        {
+            std::cout << index << " - " << *it << "\n";
+        }
+    }
+}
+
+///////////////////////////////////////////////////////////
+// tuple like protocol
+
+enum Something
+{
+    some = 1,
+    thing
+};
+
+const std::map<Something, std::string_view> something_desc = {
+    { some, "some"sv}, {thing, "thing"sv}
+};
+
+// step 1 - std::tuple_size<Something>
+template <>
+struct std::tuple_size<Something>
+{
+    static constexpr size_t value = 2;
+};
+
+// step 2 - std::tuple_element<i, Something>
+template <>
+struct std::tuple_element<0, Something>
+{
+    using type = int;
+};
+
+template <>
+struct std::tuple_element<1, Something>
+{
+    using type = std::string_view;
+};
+
+// step 3 - get<Index>
+template <size_t Index>
+decltype(auto) get(const Something&);
+
+template <>
+decltype(auto) get<0>(const Something& sth)
+{
+    return static_cast<int>(sth);
+}
+
+template <>
+decltype(auto) get<1>(const Something& sth)
+{
+    return something_desc.at(sth);
+}
+
+TEST_CASE("tuple like protocol")
+{
+    Something sth = some;
+
+    const auto [value, description] = sth;
+
+    REQUIRE(value == 1);
+    REQUIRE(description == "some"sv);
+
+    sth = thing;
+
+    const auto [v, desc] = sth;
+    REQUIRE(v == 2);
+    REQUIRE(desc == "thing"sv);
 }
