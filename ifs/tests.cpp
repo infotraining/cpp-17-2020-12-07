@@ -151,3 +151,39 @@ TEST_CASE("type traits")
     using Type2 = int*;
     static_assert(std::is_pointer_v<Type2> == true);
 }
+
+template <typename T>
+std::string to_str(T value)
+{
+    if constexpr(std::is_same_v<T, std::string>)
+    {
+        return value;
+    }
+    else if constexpr (std::is_arithmetic_v<T>)
+    {
+        return std::to_string(value);
+    }
+    else
+    {
+        return std::string(value);
+    }
+}
+
+TEST_CASE("to_str")
+{
+    SECTION("std::string")
+    {
+        auto v = "str"s;
+        REQUIRE(to_str(v) == "str"s);
+    }
+
+    SECTION("numbers")
+    {
+        REQUIRE(to_str(42) == "42"s);
+    }
+
+    SECTION("c-string")
+    {
+        REQUIRE(to_str("text") == "text"s);
+    }
+}
