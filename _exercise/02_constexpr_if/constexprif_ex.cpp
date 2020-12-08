@@ -7,8 +7,22 @@
 using namespace std;
 
 template <typename Iterator>
-void advance_it(Iterator& it, size_t n)
+auto advance_it(Iterator& it, size_t n)
 {
+    using IteratorCategory = typename std::iterator_traits<Iterator>::iterator_category;
+
+    if constexpr (std::is_same_v<IteratorCategory, random_access_iterator_tag>)
+    {
+        it += n;
+        return IteratorCategory{};
+    }
+    else
+    {
+        for (size_t i = 0; i < n; i++, it++)
+        {
+        }
+        return IteratorCategory{};
+    }
 }
 
 TEST_CASE("constexpr-if with iterator categories")
@@ -19,7 +33,9 @@ TEST_CASE("constexpr-if with iterator categories")
 
         auto it = data.begin();
 
-        advance_it(it, 3);
+        auto result = advance_it(it, 3);
+
+        static_assert(std::is_same_v<decltype(result), std::random_access_iterator_tag>);
 
         REQUIRE(*it == 4);
     }
@@ -30,7 +46,9 @@ TEST_CASE("constexpr-if with iterator categories")
 
         auto it = data.begin();
 
-        advance_it(it, 3);
+        auto result = advance_it(it, 3);
+
+        static_assert(std::is_same_v<decltype(result), std::bidirectional_iterator_tag>);
 
         REQUIRE(*it == 4);
     }
