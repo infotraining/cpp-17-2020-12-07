@@ -13,6 +13,11 @@ using namespace std;
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
 // TODO
+template <typename TContainer, typename... TArgs>
+auto matches(const TContainer& container, const TArgs&... args)
+{
+    return (... + std::count(begin(container), end(container), args));
+}
 
 TEST_CASE("matches - returns how many items is stored in a container")
 {
@@ -44,7 +49,20 @@ public:
     }
 };
 
-// TODO
+
+template<typename... TArgs>
+auto make_vector(TArgs&&... args)
+{
+   using TItem = std::common_type_t<TArgs...>; 
+
+   std::vector<TItem> output;
+   output.reserve(sizeof...(args));
+   
+   (..., output.push_back(std::forward<TArgs>(args)));  // left fold expression with , operator
+
+   return output;
+}
+
 
 TEST_CASE("make_vector - create vector from a list of arguments")
 {
@@ -81,16 +99,40 @@ TEST_CASE("make_vector - create vector from a list of arguments")
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
-// TODO
+template <typename T>
+struct Range
+{
+    T low, high;    
+
+    bool operator()(const T& value) const
+    {
+        return (low <= value) && (value <= high);
+    }
+};
+
+template <typename T1, typename T2>
+Range(T1, T2) -> Range<std::common_type_t<T1, T2>>;
+
+template <typename TRange, typename... TArgs>
+bool within(const TRange& in_range, const TArgs&... args)
+{
+    return (... && in_range(args));
+}
+
+TEST_CASE("functor Range")
+{
+    Range in_range{10, 20};
+    REQUIRE(in_range(12));
+}
 
 TEST_CASE("within - checks if all values fit in range [low, high]")
 {
-    REQUIRE(within(Range{10, 20.0}, 1, 15, 30) == false);
+    REQUIRE(within(Range{10, 20.1}, 1, 15, 30) == false);
     REQUIRE(within(Range{10, 20}, 11, 12, 13) == true);
     REQUIRE(within(Range{5.0, 5.5}, 5.1, 5.2, 5.3) == true);
 }
 
-/////////////////////////////////////////////////////////////////////////////////////////////////
+// /////////////////////////////////////////////////////////////////////////////////////////////////
 
 template <typename T>
 void hash_combine(size_t& seed, const T& value)
@@ -98,15 +140,14 @@ void hash_combine(size_t& seed, const T& value)
     seed ^= hash<T>{}(value) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
 }
 
-template <typename TArg>
-size_t combined_hash(const TArg& arg)
+template <typename... TArgs>
+size_t combined_hash(const TArgs&... args)
 {
     size_t seed{};
-    hash_combine(seed, arg);
+    (..., hash_combine(seed, args));
     
     return seed;
 }
-
 
 TEST_CASE("combined_hash - write a function that calculates combined hash value for a given number of arguments")
 {
