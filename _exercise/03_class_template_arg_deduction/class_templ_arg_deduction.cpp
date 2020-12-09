@@ -44,27 +44,27 @@ TEST_CASE("Guess deduced argument types")
     using TODO = void;
 
     Holder h1(x);
-    static_assert(is_same_v<decltype(h1), TODO>);
+    static_assert(is_same_v<decltype(h1), Holder<int>>);
 
     Holder h2(ref_x);
-    static_assert(is_same_v<decltype(h2), TODO>);
+    static_assert(is_same_v<decltype(h2), Holder<int>>);
 
     Holder h3(cref_x);
-    static_assert(is_same_v<decltype(h3), TODO>);
+    static_assert(is_same_v<decltype(h3),Holder<int>>);
 
     int tab[10];
     Holder h4 = tab;
-    static_assert(is_same_v<decltype(h4), TODO>);
+    static_assert(is_same_v<decltype(h4), Holder<int*>>);
 
     Holder h5("test");
-    static_assert(is_same_v<decltype(h5), TODO>);
+    static_assert(is_same_v<decltype(h5), Holder<string>>);
 
-    Holder h6{1, 2, 3, 4, 5, 6};
-    static_assert(is_same_v<decltype(h6), TODO>);
+    Holder h6{1, 2, 3, 4, 5, 6};    
+    static_assert(is_same_v<decltype(h6), Holder<vector<int>>>);
 
     Holder h7(h6);
-    static_assert(is_same_v<decltype(h7), TODO>);
+    static_assert(is_same_v<decltype(h7), Holder<vector<int>>>);
 
     Holder h8{h6, h7};
-    static_assert(is_same_v<decltype(h8), TODO>);
+    static_assert(is_same_v<decltype(h8), Holder<vector<Holder<vector<int>>>>>);
 }
