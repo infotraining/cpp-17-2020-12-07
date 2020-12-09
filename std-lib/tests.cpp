@@ -6,6 +6,8 @@
 #include <string_view>
 #include <array>
 #include <fstream>
+#include <optional>
+#include <charconv>
 
 #include "catch.hpp"
 
@@ -138,3 +140,148 @@ TEST_CASE("beware - dangling string_view")
 
     //std::string_view dangling = "abc"s;
 }
+
+/////////////////////////////////////////////////////
+// std::optional
+
+TEST_CASE("optional")
+{
+    std::optional<int> o1 = 42;
+    REQUIRE(o1.has_value());
+
+    std::optional<int> o2{42};
+    REQUIRE(o2.has_value());
+
+    std::optional<int> o3;
+    REQUIRE(o3.has_value() == false);
+
+    std::optional<int> o4 = std::nullopt;
+    REQUIRE(o4.has_value() == false);
+
+    std::optional o5 = "text"s; // std::optional<std::string> - CTAD
+
+    std::optional<std::atomic<int>> opt_atomic(std::in_place, 42);
+    REQUIRE(opt_atomic.has_value());
+
+    if (opt_atomic)
+    {
+        std::cout << *opt_atomic << "\n";
+    }
+
+    SECTION("access to value")
+    {
+        optional<int> number = 42;
+
+        SECTION("safe")
+        {
+            if (number)
+            {
+                REQUIRE(*number == 42);
+            }
+        }
+
+        SECTION("value()")
+        {
+            REQUIRE(number.value() == 42);
+
+            number.reset();
+            number = std::nullopt;
+
+            REQUIRE_THROWS_AS(number.value(), std::bad_optional_access);
+        }
+    }
+}
+
+std::optional<const char*> maybe_getenv(const char* n)
+{
+    if (const char* x = std::getenv(n))
+        return x;
+    else
+        return std::nullopt;
+}
+
+TEST_CASE("value_or()")
+{
+    auto result = maybe_getenv("wrong PATH").value_or("not found");
+
+    std::cout << result << "\n";
+}
+
+TEST_CASE("optional & move semantics")
+{
+    optional<string> text = "text";
+
+    optional target = std::move(text);
+
+    REQUIRE(target.has_value());
+    REQUIRE(target.value() == "text"s);
+
+    REQUIRE(text.has_value()); // text still has value
+    text.reset();
+}
+
+TEST_CASE("optional - strange cases")
+{
+    SECTION("optional ==")
+    {
+        optional o1 = 42;
+
+        REQUIRE(o1 == 42);
+
+        o1.reset();
+
+        REQUIRE_FALSE(o1 == 42);
+    }
+
+    SECTION("optional<bool>")
+    {
+        optional<bool> ob{false};
+
+        if (ob)
+        {
+            std::cout << "ob has value..." << *ob << "\n";
+        }
+
+        REQUIRE(ob == false);
+    }
+
+    SECTION("optional<int*>")
+    {
+        std::optional<int*> optr{nullptr};
+
+        if (optr)
+        {
+            std::cout << "optr has value..." << *optr << "\n";
+        }
+
+        REQUIRE(optr == nullptr);
+    }
+}
+
+std::optional<int> to_int(string_view str)
+{
+    int result{};
+    
+    auto start = str.data();
+    auto end = str.data() + str.size();
+
+    if (const auto [pos_end, error_code] = std::from_chars(start, end, result); 
+        error_code != std::errc{} || pos_end != end)
+    {
+        return std::nullopt;
+    }
+
+    return result;
+}
+
+TEST_CASE("to_int")
+{
+    optional<int> number = to_int("42");
+    REQUIRE(number.has_value());
+    REQUIRE(number == 42);
+
+    optional<int> wrong_number = to_int("4h2");
+    REQUIRE(wrong_number.has_value() == false);
+}
+
+
