@@ -1,22 +1,25 @@
 #include <algorithm>
-#include <numeric>
-#include <iostream>
-#include <string>
-#include <vector>
-#include <string_view>
+#include <any>
 #include <array>
-#include <fstream>
-#include <optional>
 #include <charconv>
+#include <fstream>
+#include <iostream>
+#include <numeric>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <vector>
+#include <map>
+#include <variant>
 
 #include "catch.hpp"
 
 using namespace std;
 
-enum class Coffee : uint8_t 
+enum class Coffee : uint8_t
 {
     espresso,
-    chemex, 
+    chemex,
     v60
 };
 
@@ -24,13 +27,14 @@ TEST_CASE("enums + {}")
 {
     Coffee c1 = Coffee::espresso;
     // Coffee c2 = 1; // ERROR
-    Coffee c3{1};
+    Coffee c3 {1};
 }
 
 namespace Explain
 {
     enum class byte : uint8_t
-    {};            
+    {
+    };
 
     template <class IntegerType>
     constexpr byte& operator<<=(byte& b, IntegerType shift) noexcept
@@ -47,11 +51,11 @@ TEST_CASE("bytes in C++")
 
     auto byte2 = (byte1 << 2);
 
-    std::byte b1{42};
+    std::byte b1 {42};
     b1 <<= 2;
 
-    std::byte b2{0b00110011};
-    std::byte b3{0b11010010};
+    std::byte b2 {0b00110011};
+    std::byte b3 {0b11010010};
 
     std::byte result = b1 ^ (b2 & b3);
     result |= (b2 << 2);
@@ -98,7 +102,7 @@ void print_all(const Container& container, std::string_view prefix)
 TEST_CASE("using string_view")
 {
     vector vec = {1, 2, 3};
-    print_all(vec, "vec");   
+    print_all(vec, "vec");
 }
 
 TEST_CASE("string_view - difference between std::string & c-string")
@@ -109,7 +113,7 @@ TEST_CASE("string_view - difference between std::string & c-string")
     std::string str;
     REQUIRE(str.data() != nullptr);
 
-    array text_array = {'t', 'e', 'x', 't' };
+    array text_array = {'t', 'e', 'x', 't'};
     std::string_view sv_text(text_array.data(), text_array.size());
 
     std::cout << sv_text << "\n";
@@ -122,7 +126,7 @@ TEST_CASE("string_view conversions")
     std::string text = "abc";
     std::string_view sv_text = text; // implicit conversion
 
-    std::string str_text = std::string(sv_text);  // explicit conversion
+    std::string str_text = std::string(sv_text); // explicit conversion
 }
 
 std::string_view get_prefix(std::string_view text, size_t length)
@@ -149,7 +153,7 @@ TEST_CASE("optional")
     std::optional<int> o1 = 42;
     REQUIRE(o1.has_value());
 
-    std::optional<int> o2{42};
+    std::optional<int> o2 {42};
     REQUIRE(o2.has_value());
 
     std::optional<int> o3;
@@ -235,7 +239,7 @@ TEST_CASE("optional - strange cases")
 
     SECTION("optional<bool>")
     {
-        optional<bool> ob{false};
+        optional<bool> ob {false};
 
         if (ob)
         {
@@ -247,7 +251,7 @@ TEST_CASE("optional - strange cases")
 
     SECTION("optional<int*>")
     {
-        std::optional<int*> optr{nullptr};
+        std::optional<int*> optr {nullptr};
 
         if (optr)
         {
@@ -260,13 +264,13 @@ TEST_CASE("optional - strange cases")
 
 std::optional<int> to_int(string_view str)
 {
-    int result{};
-    
+    int result {};
+
     auto start = str.data();
     auto end = str.data() + str.size();
 
-    if (const auto [pos_end, error_code] = std::from_chars(start, end, result); 
-        error_code != std::errc{} || pos_end != end)
+    if (const auto [pos_end, error_code] = std::from_chars(start, end, result);
+        error_code != std::errc {} || pos_end != end)
     {
         return std::nullopt;
     }
@@ -284,4 +288,142 @@ TEST_CASE("to_int")
     REQUIRE(wrong_number.has_value() == false);
 }
 
+////////////////////////////////////////////////////////
+// std::any
 
+TEST_CASE("std::any")
+{
+    std::any anything;
+
+    REQUIRE(anything.has_value() == false);
+
+    anything = 1;
+    anything = 3.14;
+    anything = std::string("text");
+    anything = vector {1, 2, 3};
+
+    REQUIRE(anything.has_value());
+
+    SECTION("std::any & RTTI")
+    {
+        REQUIRE(anything.type() == typeid(std::vector<int>));
+        std::cout << "anything - type: " << anything.type().name() << "\n";
+    }
+
+    SECTION("std::any_cast")
+    {
+        auto vec = std::any_cast<std::vector<int>>(anything);
+        REQUIRE(vec == vector {1, 2, 3});
+
+        REQUIRE_THROWS_AS(std::any_cast<std::string>(anything), std::bad_any_cast);
+    }
+
+    SECTION("std::any_cast with pointer")
+    {
+        vector<int>* ptr_vec = std::any_cast<std::vector<int>>(&anything);
+
+        if (ptr_vec)
+        {
+            REQUIRE(*ptr_vec == vector {1, 2, 3});
+        }
+
+        REQUIRE(std::any_cast<std::string>(&anything) == nullptr);
+    }
+}
+
+class KeyValueDictionary
+{
+    std::map<std::string, std::any> dict_;
+
+public:
+    template <typename T>
+    optional<map<string, any>::iterator> insert(string key, T value)
+    {
+        auto [pos, was_inserted] = dict_.emplace(move(key), move(value));
+
+        if (was_inserted)
+            return pos;
+        
+        return nullopt;
+    }
+
+    template <typename T>
+    T& at(const string& key)
+    {
+        T* value = any_cast<T>(&dict_.at(key));
+
+        if (!value)
+            throw bad_any_cast();
+
+        return *value;
+    }
+};
+
+TEST_CASE("KeyValueDictionary")
+{
+    KeyValueDictionary dict;
+
+    dict.insert("name", "Jan"s);
+    dict.insert("age", 33);
+    dict.insert("data", vector{1, 2, 3});
+
+    REQUIRE(dict.at<std::string>("name") == "Jan"s);
+    REQUIRE(dict.at<int>("age") == 33);
+}
+
+//////////////////////////////////////////////////////////////////
+// std::variant
+
+struct NoDefaultConstructible
+{
+    int value;
+
+    NoDefaultConstructible(int v)
+        : value {v}
+    {
+    }
+};
+
+TEST_CASE("std::variant")
+{
+    std::variant<int, double, std::string> v1;
+    REQUIRE(v1.index() == 0);
+    REQUIRE(std::holds_alternative<int>(v1) == true);
+
+    v1 = 3.14;
+    v1 = "text"s;
+
+    REQUIRE(std::holds_alternative<std::string>(v1) == true);
+    REQUIRE(v1.index() == 2);
+
+    REQUIRE(std::get<std::string>(v1) == "text"s);
+    REQUIRE_THROWS_AS(std::get<int>(v1), std::bad_variant_access);
+
+    std::string* ptr_str = std::get_if<std::string>(&v1);
+
+    if (ptr_str)
+    {
+        REQUIRE(*ptr_str == "text"s);
+    }
+
+    SECTION("monostate")
+    {
+        std::variant<std::monostate, NoDefaultConstructible, int, double> v1;
+        REQUIRE(v1.index() == 0);
+    }
+}
+
+struct Printer
+{
+    void operator()(int x) { std::cout << "int: " << x << "\n"; }
+    void operator()(double d) { std::cout << "double: " << d << "\n"; }
+    void operator()(const std::string& str) { std::cout << "string: " << str << "\n"; }
+    void operator()(const std::vector<int>& v) { std::cout << "vector: " << v.size() << "\n"; }
+};
+
+TEST_CASE("visiting variants")
+{
+    std::variant<int, double, std::string, std::vector<int>> v = vector{1, 2, 3};
+
+    std::visit(Printer{}, v);
+}
